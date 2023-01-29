@@ -46,13 +46,10 @@ impl Entity {
         }
     }
     pub fn update(&mut self, dt: f32, gravity: Vector3<f32>) {
-        self.force = add_vec3(self.force, mul_vec3(gravity, self.mass));
-        self.velocity = add_vec3(self.velocity, mul_vec3(self.force, dt * self.mass));
+        // a = gravity
+        // v = v0 + at
+        self.velocity = add_vec3(self.velocity, mul_vec3(gravity, dt));
+        // p = p0 + vt
         self.position = add_vec3(self.position, mul_vec3(self.velocity, dt));
-        self.force = Vector3 {
-            x: 0.0,
-            y: 0.0,
-            z: 0.0,
-        };
     }
 }

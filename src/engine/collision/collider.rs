@@ -2,7 +2,7 @@ use self::collision_algos::{
     get_plane_plane_collision, get_sphere_plane_collision, get_sphere_sphere_collision,
 };
 
-use super::collision::Collision;
+use super::collision::CollisionPoints;
 use crate::engine::common::add_vec3;
 use crate::engine::common::transform::Transform;
 use ggez::mint::Vector3;
@@ -10,16 +10,16 @@ use ggez::mint::Vector3;
 pub trait Collider {
     fn is_colliding(
         &self,
-        transfrom: Transform,
+        transfrom: &Transform,
         other: &ColliderType,
-        other_transfrom: Transform,
+        other_transfrom: &Transform,
     ) -> bool;
     fn get_collision(
         &self,
-        transfrom: Transform,
+        transfrom: &Transform,
         other: &ColliderType,
-        other_transfrom: Transform,
-    ) -> Option<Collision>;
+        other_transfrom: &Transform,
+    ) -> Option<CollisionPoints>;
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -43,10 +43,10 @@ pub struct PlaneCollider {
 impl Collider for ColliderType {
     fn get_collision(
         &self,
-        transfrom: Transform,
+        transfrom: &Transform,
         other: &ColliderType,
-        other_transfrom: Transform,
-    ) -> Option<Collision> {
+        other_transfrom: &Transform,
+    ) -> Option<CollisionPoints> {
         match self {
             Self::Plane(p) => p.get_collision(transfrom, other, other_transfrom),
             Self::Sphere(s) => s.get_collision(transfrom, other, other_transfrom),
@@ -54,9 +54,9 @@ impl Collider for ColliderType {
     }
     fn is_colliding(
         &self,
-        transfrom: Transform,
+        transfrom: &Transform,
         other: &ColliderType,
-        other_transfrom: Transform,
+        other_transfrom: &Transform,
     ) -> bool {
         match self {
             Self::Plane(p) => p.is_colliding(transfrom, other, other_transfrom),
@@ -68,9 +68,9 @@ impl Collider for ColliderType {
 impl Collider for SphereCollider {
     fn is_colliding(
         &self,
-        transfrom: Transform,
+        transfrom: &Transform,
         other: &ColliderType,
-        other_transfrom: Transform,
+        other_transfrom: &Transform,
     ) -> bool {
         self.get_collision(transfrom, other, other_transfrom)
             .is_some()
@@ -78,10 +78,10 @@ impl Collider for SphereCollider {
 
     fn get_collision(
         &self,
-        transfrom: Transform,
+        transfrom: &Transform,
         other: &ColliderType,
-        other_transfrom: Transform,
-    ) -> Option<Collision> {
+        other_transfrom: &Transform,
+    ) -> Option<CollisionPoints> {
         match other {
             ColliderType::Sphere(sphere) => {
                 get_sphere_sphere_collision(self, transfrom, sphere, other_transfrom)
@@ -96,9 +96,9 @@ impl Collider for SphereCollider {
 impl Collider for PlaneCollider {
     fn is_colliding(
         &self,
-        transfrom: Transform,
+        transfrom: &Transform,
         other: &ColliderType,
-        other_transfrom: Transform,
+        other_transfrom: &Transform,
     ) -> bool {
         self.get_collision(transfrom, other, other_transfrom)
             .is_some()
@@ -106,10 +106,10 @@ impl Collider for PlaneCollider {
 
     fn get_collision(
         &self,
-        transfrom: Transform,
+        transfrom: &Transform,
         other: &ColliderType,
-        other_transfrom: Transform,
-    ) -> Option<Collision> {
+        other_transfrom: &Transform,
+    ) -> Option<CollisionPoints> {
         match other {
             ColliderType::Sphere(sphere) => {
                 get_sphere_plane_collision(sphere, other_transfrom, self, transfrom)
@@ -122,16 +122,17 @@ impl Collider for PlaneCollider {
 }
 
 mod collision_algos {
-    use ggez::mint::Vector3;
 
-    use super::{add_vec3, Collision, PlaneCollider, SphereCollider, Transform};
+    use crate::engine::common::normal_of_vec3;
+
+    use super::{add_vec3, CollisionPoints, PlaneCollider, SphereCollider, Transform};
 
     pub fn get_sphere_plane_collision(
         a: &SphereCollider,
-        a_transform: Transform,
+        a_transform: &Transform,
         b: &PlaneCollider,
-        b_transform: Transform,
-    ) -> Option<Collision> {
+        b_transform: &Transform,
+    ) -> Option<CollisionPoints> {
         let a_pos = add_vec3(a_transform.position, a.position);
         let b_pos = add_vec3(b_transform.position, b.position);
         let distance = (a_pos.x - b_pos.x) * b.normal.x
@@ -139,11 +140,11 @@ mod collision_algos {
             + (a_pos.z - b_pos.z) * b.normal.z;
         if distance <= a.radius {
             let depth = a.radius - distance;
-            Some(Collision {
+            Some(CollisionPoints {
                 a: a_pos,
                 b: b_pos,
                 depth,
-                //normal: a.radius - distance,
+                normal: normal_of_vec3(b_pos, a_pos),
                 is_colliding: true,
             })
         } else {
@@ -153,10 +154,10 @@ mod collision_algos {
 
     pub fn get_sphere_sphere_collision(
         a: &SphereCollider,
-        a_transform: Transform,
+        a_transform: &Transform,
         b: &SphereCollider,
-        b_transform: Transform,
-    ) -> Option<Collision> {
+        b_transform: &Transform,
+    ) -> Option<CollisionPoints> {
         let a_pos = add_vec3(a_transform.position, a.position);
         let b_pos = add_vec3(b_transform.position, b.position);
         let distance =
@@ -164,16 +165,12 @@ mod collision_algos {
         let radius_sum = a.radius + b.radius;
         if distance <= radius_sum.powi(2) {
             let depth = radius_sum - distance.sqrt();
-            let _normal = Vector3 {
-                x: a_pos.x - b_pos.x,
-                y: a_pos.y - b_pos.y,
-                z: a_pos.z - b_pos.z,
-            };
-            Some(Collision {
+            let normal = normal_of_vec3(b_pos, a_pos);
+            Some(CollisionPoints {
                 a: a_pos,
                 b: b_pos,
                 depth,
-                //normal,
+                normal,
                 is_colliding: true,
             })
         } else {
@@ -183,10 +180,10 @@ mod collision_algos {
 
     pub fn get_plane_plane_collision(
         _a: &PlaneCollider,
-        _a_transform: Transform,
+        _a_transform: &Transform,
         _b: &PlaneCollider,
-        _b_transform: Transform,
-    ) -> Option<Collision> {
+        _b_transform: &Transform,
+    ) -> Option<CollisionPoints> {
         None
     }
 }
